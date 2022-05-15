@@ -4,3 +4,10 @@ records:
     date: 2022-05-15
     type: meeting
     title: I'm doing this
+events:
+  - date: 2022-05-15
+    title: demo
+    type: meeting
+    link: https://github.com
+    participants:
+      - github: linuxsuren

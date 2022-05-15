@@ -36,16 +36,41 @@ type ActivityRecord struct {
 }
 
 func (r ActivityRecord) GetID() string {
-	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s/%s", r.GitHub, r.Date)))
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(
+		"%s-%s-%s-%s",
+		r.Title, r.GitHub, r.Date, r.Type)))
+}
+
+type EventRecord struct {
+	Type         string   `yaml:"type"`
+	Date         string   `json:"date"`
+	Title        string   `json:"title"`
+	Link         string   `json:"link"`
+	Participants []Member `json:"participants"`
+}
+
+func (r EventRecord) GetID(member Member) string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(
+		"%s-%s-%s-%s-%s",
+		r.Type, r.Date, r.Title, r.Link, member.GitHub)))
+}
+
+type Member struct {
+	GitHub string `json:"github"`
 }
 
 type ActivityRecords struct {
 	Workspace string
 	Records   []ActivityRecord `yaml:"records"`
+	Events    []EventRecord    `yaml:"events"`
 }
 
-func (r ActivityRecords) List() []ActivityRecord {
+func (r ActivityRecords) ListRecords() []ActivityRecord {
 	return r.Records
+}
+
+func (r ActivityRecords) ListEvents() []EventRecord {
+	return r.Events
 }
 
 func (o *activityUpdateOption) runE(cmd *cobra.Command, args []string) (err error) {
@@ -66,8 +91,8 @@ func (o *activityUpdateOption) runE(cmd *cobra.Command, args []string) (err erro
 
 	token := os.Getenv("ORBIT_TOKEN")
 	orbit := client.NewOrbit(token)
-	for i := range records.List() {
-		record := records.List()[i]
+	for i := range records.ListRecords() {
+		record := records.ListRecords()[i]
 
 		activity := orbit.GetActivityByID(records.Workspace, record.GetID())
 		if activity != nil {
@@ -86,10 +111,39 @@ func (o *activityUpdateOption) runE(cmd *cobra.Command, args []string) (err erro
 				Key: record.GetID(),
 			},
 			Identity: client.Identity{
-				Source: record.GitHub,
+				Source: "orbit-assistant",
 			},
 		}
 		orbit.CreateActivity(records.Workspace, activityPayload)
+	}
+
+	for i := range records.ListEvents() {
+		event := records.ListEvents()[i]
+
+		for j := range event.Participants {
+			participant := event.Participants[j]
+			activity := orbit.GetActivityByID(records.Workspace, event.GetID(participant))
+			if activity != nil {
+				continue
+			}
+
+			activityPayload := &client.ActivityPayload{
+				Activity: client.Activity{
+					Title:        event.Title,
+					URL:          event.Link,
+					ActivityType: event.Type,
+					OccurredAt:   event.Date,
+					Member: client.Member{
+						GitHub: participant.GitHub,
+					},
+					Key: event.GetID(participant),
+				},
+				Identity: client.Identity{
+					Source: "orbit-assistant",
+				},
+			}
+			orbit.CreateActivity(records.Workspace, activityPayload)
+		}
 	}
 	return
 }
