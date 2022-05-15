@@ -1,0 +1,12 @@
+name: 'Orbit Assistant'
+description: 'Orbit Assistant'
+inputs:
+  file:  # id of input
+    description: 'The Orbit activities file path'
+    required: true
+    default: 'activities.yaml'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.file }}
